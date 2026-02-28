@@ -47,6 +47,11 @@ A comprehensive AI Agent Skill for embedded MCU CAN/CAN-FD bus development, cove
 | `references/can-priority-inversion.md` | Priority inversion analysis and solutions |
 | `references/can-controller-states.md` | Controller state machine management |
 | `references/can-engineering-practices.md` | Engineering best practices |
+| `references/can-mcal-basics.md` | CAN MCAL register configuration |
+| `references/uds-diagnostic-services.md` | UDS 0x22/0x2E/0x31 services |
+| `references/cannm-network-management.md` | CanNm sleep/wakeup state machine |
+| `references/cantp-transport-protocol.md` | SF/FF/CF/FC frame handling |
+| `references/pdu-routing-gateway.md` | PDU routing and gateway configuration |
 | `sub-skills/can-diagnosis/references/busoff-recovery.md` | Busoff recovery mechanisms |
 
 ### Quick Diagnosis
@@ -79,7 +84,7 @@ can-skill/
 
 ### Version
 
-Current version: **v1.3.0**
+Current version: **v1.4.0**
 
 ---
 
@@ -126,6 +131,11 @@ Current version: **v1.3.0**
 | `references/can-priority-inversion.md` | 优先级反转分析与解决方案 |
 | `references/can-controller-states.md` | 控制器状态机管理 |
 | `references/can-engineering-practices.md` | 工程实践最佳实践 |
+| `references/can-mcal-basics.md` | CAN MCAL寄存器配置 |
+| `references/uds-diagnostic-services.md` | UDS 0x22/0x2E/0x31服务实现 |
+| `references/cannm-network-management.md` | CanNm睡眠唤醒状态机 |
+| `references/cantp-transport-protocol.md` | SF/FF/CF/FC帧处理 |
+| `references/pdu-routing-gateway.md` | PDU路由与网关配置 |
 | `sub-skills/can-diagnosis/references/busoff-recovery.md` | Busoff恢复机制 |
 
 ### 快速诊断
@@ -158,7 +168,7 @@ can-skill/
 
 ### 版本
 
-当前版本：**v1.3.0**
+当前版本：**v1.4.0**
 
 ---
 
