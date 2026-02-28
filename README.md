@@ -38,10 +38,12 @@ A comprehensive AI Agent Skill for embedded MCU CAN/CAN-FD bus development, cove
 
 | Document | Description |
 |----------|-------------|
-| `references/can-protocol.md` | CAN protocol fundamentals |
+| `references/can-protocol.md` | CAN protocol fundamentals, loop/open-loop, bit timing |
 | `references/can-fd-extension.md` | CAN-FD extensions and migration |
 | `references/emi-emc-guide.md` | EMI/EMC design guide |
 | `references/common-fault-cases.md` | 10 real-world fault cases |
+| `references/can-buffer-mode.md` | Basic CAN vs Full CAN, FIFO configuration |
+| `sub-skills/can-diagnosis/references/busoff-recovery.md` | Busoff recovery mechanisms |
 
 ### Quick Diagnosis
 
@@ -68,7 +70,7 @@ can-skill/
 
 ### Version
 
-Current version: **v1.1.0**
+Current version: **v1.2.0**
 
 ---
 
@@ -106,10 +108,12 @@ Current version: **v1.1.0**
 
 | 文档 | 描述 |
 |------|------|
-| `references/can-protocol.md` | CAN协议基础 |
+| `references/can-protocol.md` | CAN协议基础、闭环/开环结构、位时序 |
 | `references/can-fd-extension.md` | CAN-FD扩展与迁移 |
 | `references/emi-emc-guide.md` | EMI/EMC设计指南 |
 | `references/common-fault-cases.md` | 10个真实故障案例 |
+| `references/can-buffer-mode.md` | Basic CAN vs Full CAN、FIFO配置 |
+| `sub-skills/can-diagnosis/references/busoff-recovery.md` | Busoff恢复机制 |
 
 ### 快速诊断
 
@@ -136,7 +140,7 @@ can-skill/
 
 ### 版本
 
-当前版本：**v1.1.0**
+当前版本：**v1.2.0**
 
 ---
 
