@@ -56,6 +56,135 @@ Measure between CAN_H and CAN_L:
 | Transceiver power | Not connected |
 | Ground | Not shared |
 
+## Termination Methods
+
+### Standard Termination
+
+```
+     120Ω              120Ω
+  ┌──/\/\/\──┐     ┌──/\/\/\──┐
+  │          │     │          │
+CAN_H       CAN_H CAN_L       CAN_L
+  │          │     │          │
+  └──────────┴─────┴──────────┘
+        BUS (120Ω characteristic)
+```
+
+### Split Termination (Improved EMI)
+
+```
+          ┌── 60Ω ──┬── 60Ω ──┐
+          │         │         │
+      CAN_H         │        CAN_L
+                    │
+                   4.7nF
+                    │
+                   GND
+```
+
+**Benefits**:
+- Better common mode filtering
+- Reduced EMI emissions
+- Common mode stabilization
+
+### Split Pin (Common Mode Stabilization)
+
+Many transceivers have a SPLIT pin for this purpose:
+- TJA1042, TJA1043, TJA1055
+- Connect SPLIT to center tap of split termination
+- Provides stable common mode voltage (~2.5V)
+
+## Common Mode Choke
+
+### Purpose
+
+A common mode choke:
+- Passes differential signals (low impedance)
+- Blocks common mode noise (high impedance)
+- Reduces EMI emissions and improves immunity
+
+### Selection Criteria
+
+| Parameter | Typical Value | Notes |
+|-----------|---------------|-------|
+| Inductance | 25-100 µH | Higher = better CM filtering |
+| DC Resistance | < 1Ω | Lower = less signal loss |
+| Current Rating | > 100mA | Must handle bus current |
+| Common Mode Impedance | > 100Ω @ 100MHz | EMI suppression |
+
+### Common Part Numbers
+
+| Part | Inductance | DCR | Package |
+|------|------------|-----|---------|
+| B82789 | 2×51µH | 0.1Ω | SMD |
+| DLW43SH101 | 100µH | 0.3Ω | SMD |
+| WE-CNSW | 2×47µH | 0.12Ω | SMD |
+
+### Placement
+
+```
+MCU ── TXD/RXD ── Transceiver ── CMC ── CAN Bus
+                              │
+                           ESD Protection
+```
+
+**Rules**:
+- Place as close to transceiver as possible
+- After ESD protection diodes
+- Before bus termination
+
+## ESD and Transient Protection
+
+### Components
+
+| Component | Purpose | Placement |
+|-----------|---------|-----------|
+| TVS diodes | ESD/fast transients | At connector |
+| Common mode choke | EMI filtering | After TVS |
+| Series resistors | Current limiting | At transceiver |
+
+### Typical Circuit
+
+```
+                    ┌─────────────────┐
+CAN_H ──┬──[TVS]──┬─┤ CMC      CMC    ├──┬── 120Ω termination
+        │         │ └─────────────────┘  │
+        │         │                      │
+        └─────────┴── To Transceiver     │
+                                       CAN Bus
+```
+
+## Shielding and Grounding
+
+### Shielded Cable
+
+| Cable Type | Shield Type | Application |
+|------------|-------------|-------------|
+| Standard CAN | Unshielded | Low EMI environment |
+| Industrial CAN | Foil + Braid | High EMI environment |
+| Automotive | Foil shield | Weight sensitive |
+
+### Shield Termination
+
+```
+Option 1: Single-point ground (preferred for low frequency)
+  Shield ───┬── GND at one end only
+            │
+          360° clamp at connector
+
+Option 2: Capacitive ground (for high frequency)
+  Shield ───┬── GND via 1nF-10nF capacitor
+            │
+          360° clamp at connector
+```
+
+### Grounding Rules
+
+1. **Never** connect shield at both ends directly (ground loop)
+2. Use 360° shield clamp at connector
+3. Keep ground leads short
+4. Use common mode choke for additional isolation
+
 ## Debugging Tools
 
 ### Multimeter Checks
@@ -86,6 +215,15 @@ Trigger: Math channel, ~1V threshold
 Time base: 1-2 μs/div for 500 kbps
 Voltage: 1V/div
 ```
+
+### Signal Quality Measurements
+
+| Parameter | Good | Marginal | Poor |
+|-----------|------|----------|------|
+| Differential amplitude | 1.5-3V | 1.2-1.5V | < 1.2V |
+| Rise time | 20-50ns | 50-100ns | > 100ns |
+| Overshoot | < 10% | 10-20% | > 20% |
+| Ringing | Minimal | Moderate | Severe |
 
 ### Logic Analyzer
 
@@ -135,6 +273,16 @@ Voltage: 1V/div
 3. Bus loading (too many nodes)
 4. Ground differences between nodes
 
+### Issue 5: EMI-Related Failures
+
+**Symptoms:** Errors near motors, solenoids, relays
+
+**Check:**
+1. Shield grounding
+2. Common mode choke presence
+3. Cable routing near noise sources
+4. Transient protection
+
 ## Cable Requirements
 
 | Parameter | Requirement |
@@ -146,13 +294,22 @@ Voltage: 1V/div
 
 ### Baud Rate vs Cable Length
 
-| Baud Rate | Max Length |
-|-----------|------------|
-| 1 Mbps | 40m |
-| 500 kbps | 100m |
-| 250 kbps | 250m |
-| 125 kbps | 500m |
-| 50 kbps | 1km |
+| Baud Rate | Max Length | Notes |
+|-----------|------------|-------|
+| 1 Mbps | 40m | Standard limit |
+| 500 kbps | 100m | Most common |
+| 250 kbps | 250m | |
+| 125 kbps | 500m | |
+| 50 kbps | 1km | Use repeaters for longer |
+
+### Cable Selection Guide
+
+| Environment | Cable Type | Shield |
+|-------------|------------|--------|
+| Office/Lab | Standard twisted pair | Optional |
+| Industrial | Industrial CAN cable | Yes |
+| Automotive | Automotive grade | Yes |
+| Outdoor | UV-resistant jacket | Yes |
 
 ## Connector Standards
 
@@ -171,3 +328,16 @@ Voltage: 1V/div
 | 3 | GND |
 | 7 | CAN_H |
 | 9 | CAN_V+ (optional) |
+
+## EMI Troubleshooting Checklist
+
+```
+□ Check for noise sources near CAN cable
+□ Verify shield is properly grounded
+□ Add common mode choke if missing
+□ Check for ground loops between nodes
+□ Use twisted pair cable
+□ Separate CAN cable from power cables
+□ Add TVS diodes at connector
+□ Consider ferrite beads on cable
+```

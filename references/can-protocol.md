@@ -63,6 +63,26 @@ IFS: Interframe Space
 | ACK Check | No ACK = error |
 | Form Check | Fixed format fields |
 
+## Bit Stuffing Mechanism
+
+CAN uses bit stuffing to ensure enough edges for synchronization:
+
+**Rule**: After 5 consecutive bits of the same polarity, the transmitter
+inserts a stuff bit of opposite polarity.
+
+```
+Data bits:    0 0 0 0 0 | 1 | 1 1 1 1 1 | 0
+                  ↑         ↑
+              stuff bit  stuff bit
+```
+
+**Scope**: Applies from SOF to CRC delimiter (exclusive)
+
+**Impact**:
+- Adds ~20% overhead on average
+- Enables DC-free transmission
+- Essential for clock synchronization
+
 ## Baud Rate
 
 Common baud rates:
@@ -88,8 +108,68 @@ Error Active ←→ Error Passive → Bus Off
 - **Error Passive**: TEC or REC ≥ 128, limited TX
 - **Bus Off**: TEC > 255, no TX allowed
 
+### Error State Transitions
+
+| State | TEC | REC | Behavior |
+|-------|-----|-----|----------|
+| Error Active | 0-127 | 0-127 | Active error flags |
+| Error Passive | 128-255 | 128-255 | Passive error flags |
+| Bus Off | >255 | - | No transmission |
+
+### Recovery from Bus-Off
+
+1. Wait for 128 occurrences of 11 recessive bits
+2. Or perform hardware/software reset
+3. Counters reset to 0
+
 ## Termination
 
 - 120 ohm at each end of bus
 - Total termination: 60 ohm (parallel)
 - Prevents signal reflection
+
+## Bus Load Calculation
+
+```
+Bus Load = (Actual Frame Time / Nominal Frame Time) × 100%
+
+Standard Frame (11-bit ID, 8 bytes):
+- Nominal bits: 1 + 11 + 1 + 1 + 1 + 4 + 64 + 15 + 2 + 7 + 3 = 111 bits
+- With bit stuffing: ~130 bits average
+
+Extended Frame (29-bit ID, 8 bytes):
+- Nominal bits: 1 + 29 + 1 + 1 + 1 + 4 + 64 + 15 + 2 + 7 + 3 = 135 bits
+- With bit stuffing: ~160 bits average
+```
+
+### Example: 500 kbps Bus Load
+
+```
+Message: 500 messages/second, 8 bytes each, standard ID
+Bits per message: ~130 bits (with stuffing)
+Total bits/second: 500 × 130 = 65,000 bits
+Bus load: 65,000 / 500,000 = 13%
+```
+
+**Recommended max bus load: 70%** to allow for:
+- Error recovery
+- Message retransmission
+- Network expansion
+
+## Physical Layer Voltage Levels
+
+| State | CAN_H | CAN_L | Differential |
+|-------|-------|-------|--------------|
+| Recessive (idle) | 2.5V | 2.5V | 0V |
+| Dominant (active) | 3.5V | 1.5V | 2V |
+
+**Voltage Tolerance**:
+- V_diff (dominant): ≥ 1.5V
+- V_diff (recessive): < 0.5V
+- Common mode range: -2V to +7V
+
+## Differential Signaling Benefits
+
+1. **Noise Immunity**: Common mode noise cancels
+2. **EMI Reduction**: Opposite currents cancel magnetic fields
+3. **Ground Independence**: Works across ground potential differences

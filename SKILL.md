@@ -4,7 +4,7 @@ description: |
   Embedded MCU CAN/CAN-FD driver development skill. Supports driver development,
   debugging, diagnosis, and testing for CAN bus. Works with STM32, NXP, Infineon
   and other mainstream MCUs. Do NOT use for Linux SocketCAN or PC-based CAN tools.
-version: 1.0.0
+version: 1.1.0
 author: cyj0920
 tags: [can, can-fd, embedded, mcu, driver, automotive, bus]
 ---
@@ -13,6 +13,17 @@ tags: [can, can-fd, embedded, mcu, driver, automotive, bus]
 
 A comprehensive skill for embedded MCU CAN bus development, covering driver
 implementation, debugging, diagnosis, and testing phases.
+
+## Quick Diagnosis
+
+**Over 80% of CAN issues are physical layer problems.** Start here:
+
+1. **Check termination**: Measure CAN_H to CAN_L resistance (should be ~60Ω)
+2. **Check idle voltage**: CAN_H and CAN_L should be ~2.5V each
+3. **Check baud rate**: All nodes must match exactly (< 0.5% tolerance)
+4. **Check wiring**: CAN_H to CAN_H, CAN_L to CAN_L (not swapped)
+
+For detailed cases, see `references/common-fault-cases.md`.
 
 ## Trigger Conditions
 
@@ -61,6 +72,17 @@ Follow the specific sub-skill workflow based on task type:
 3. **Problem Diagnosis**: See `sub-skills/can-diagnosis/SKILL.md`
 4. **Testing**: See `sub-skills/can-testing/SKILL.md`
 
+## Reference Documents
+
+### Protocol & Standards
+- `references/can-protocol.md` - CAN protocol fundamentals
+- `references/can-fd-extension.md` - CAN-FD extensions and migration
+- `references/common-mcu-can.md` - MCU CAN controller overview
+
+### Troubleshooting
+- `references/common-fault-cases.md` - 10 real-world fault cases
+- `references/emi-emc-guide.md` - EMI/EMC design guide
+
 ## Output Format
 
 ### For Code Generation
@@ -89,11 +111,27 @@ can-skill/
 │   ├── can-diagnosis/                # Problem diagnosis
 │   └── can-testing/                  # Testing verification
 ├── references/                       # Protocol documentation
+│   ├── can-protocol.md
+│   ├── can-fd-extension.md
+│   ├── common-mcu-can.md
+│   ├── common-fault-cases.md
+│   └── emi-emc-guide.md
 └── assets/                           # Code templates
 ```
+
+## Common Error Quick Reference
+
+| Error Type | LEC | Likely Cause | First Check |
+|------------|-----|--------------|-------------|
+| ACK Error | 3 | No other nodes active | Verify other nodes powered |
+| CRC Error | 6 | Signal integrity | Check termination, cable |
+| Bit Error | 4-5 | Transceiver/wiring | Check bus voltages |
+| Stuff Error | 1 | Baud rate mismatch | Verify all nodes same rate |
+| Form Error | 2 | Timing/noise | Check sample point |
 
 ## Notes
 
 - All generated code uses pure C with register-level operations
 - CAN-FD support is optional, loaded on demand from `references/can-fd-extension.md`
 - For specific MCU adaptations, user should verify register addresses
+- Physical layer checks should always precede software debugging

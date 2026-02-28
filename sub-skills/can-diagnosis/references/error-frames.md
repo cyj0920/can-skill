@@ -5,6 +5,9 @@
 Error frames are transmitted when a node detects an error on the bus.
 Understanding error types helps diagnose CAN communication problems.
 
+**Important**: Over 80% of CAN bus issues originate from the physical layer.
+Always check hardware first before investigating software configuration.
+
 ## Error Frame Structure
 
 ```
@@ -184,34 +187,168 @@ CAN_Error_t CAN_GetErrorStatus(void)
 - Ground problems
 - EMI interference
 
+## Detailed Troubleshooting Guide
+
+### Error Frame Analysis
+
+| Error Type | Primary Check | Secondary Check | Tools |
+|------------|---------------|-----------------|-------|
+| ACK | Other nodes active | Transceiver RX | Multimeter |
+| CRC | Signal quality | Baud rate | Oscilloscope |
+| Bit | Transceiver | Bus wiring | Oscilloscope |
+| Stuff | Baud rate | Timing/SJW | Logic analyzer |
+| Form | Transmitter | Noise | Scope + trigger |
+
+### ACK Error Solutions
+
+1. **Verify other nodes active**
+   - Check power to all nodes
+   - Verify transceiver enable pins
+   - Confirm software initialization
+
+2. **Check filter configuration**
+   - Other nodes may be rejecting messages
+   - Verify ID acceptance filters
+
+3. **Transceiver diagnostics**
+   - Measure CAN_H/L idle voltages
+   - Check TXD/RXD connections
+   - Verify transceiver not in standby
+
+### CRC Error Solutions
+
+1. **Signal integrity check**
+   - Use oscilloscope on CAN_H/L
+   - Check for ringing, overshoot
+   - Verify edge symmetry
+
+2. **Common causes:**
+   - Missing termination
+   - Long stubs
+   - EMI interference
+   - Poor cable quality
+
+3. **Solutions:**
+   - Add proper termination (120Ω each end)
+   - Shorten or remove stubs
+   - Use shielded cable
+   - Add common mode choke
+
+### Bit Error Solutions
+
+1. **Transceiver check**
+   - Verify VCC (typically 5V)
+   - Check thermal status
+   - Replace if suspected
+
+2. **Bus wiring check**
+   - Check for shorts (CAN_H to CAN_L)
+   - Check for opens
+   - Verify polarity (H to H, L to L)
+
+3. **Ground reference**
+   - Ensure all nodes share ground
+   - Check for ground loops
+   - Measure voltage between node grounds
+
+### Stuff Error Solutions
+
+1. **Baud rate verification**
+   - Check all nodes same baud rate
+   - Verify clock frequency
+   - Calculate actual vs nominal rate
+   - **Tolerance: < 1.5%**
+
+2. **SJW configuration**
+   - Increase SJW if possible
+   - Typical: 1-2 Tq
+   - Allows better resynchronization
+
+3. **Clock source quality**
+   - Use crystal oscillator for CAN
+   - Avoid internal RC oscillators
+   - Check oscillator stability
+
+### Form Error Solutions
+
+1. **Timing verification**
+   - Check sample point position
+   - Verify propagation delay settings
+   - Consider cable length effects
+
+2. **Noise investigation**
+   - Use shielded cables
+   - Check for EMI sources
+   - Improve grounding
+
+## Diagnostic Checklist
+
+### Quick Physical Layer Check
+
+```
+□ Power off: Measure CAN_H to CAN_L = ~60Ω
+□ Power on: CAN_H idle = ~2.5V
+□ Power on: CAN_L idle = ~2.5V
+□ Power on: Differential idle = ~0V
+□ During TX: CAN_H = ~3.5V, CAN_L = ~1.5V
+```
+
+### Error Counter Monitoring
+
+```
+□ Read TEC and REC every 100ms
+□ Log LEC values
+□ Track state transitions
+□ Monitor bus-off recovery
+```
+
+### Baud Rate Verification
+
+```
+□ Calculate actual baud rate
+□ Check all nodes match
+□ Verify clock accuracy
+□ Confirm tolerance < 1.5%
+```
+
 ## Error Recovery Strategies
 
 ### For ACK Errors
 1. Verify other nodes are active
 2. Check if other nodes can RX
 3. Verify filter configuration
+4. Check transceiver enable pins
 
 ### For CRC Errors
-1. Check signal integrity
-2. Verify baud rate
+1. Check signal integrity with scope
+2. Verify baud rate match
 3. Check for noise sources
+4. Verify termination
 
 ### For Bit Errors
 1. Check transceiver
 2. Verify bus not shorted
 3. Check for multiple transmitters
+4. Verify ground connections
 
 ### For Stuff Errors
-1. Verify baud rate match
-2. Check sample point
+1. Verify baud rate match (all nodes)
+2. Check sample point configuration
 3. Analyze signal edges
+4. Check clock source quality
 
-## Diagnostic Checklist
+### For Form Errors
+1. Check transmitter timing
+2. Verify bus length vs baud rate
+3. Check for EMI/EMC issues
+4. Investigate signal reflections
 
-| Error Type | Primary Check | Secondary Check |
-|------------|---------------|-----------------|
-| ACK | Other nodes active | Transceiver |
-| CRC | Signal quality | Baud rate |
-| Bit | Transceiver | Bus wiring |
-| Stuff | Baud rate | Timing |
-| Form | Transmitter | Noise |
+## Common Fault Signatures
+
+| Symptom | Likely Error | Root Cause |
+|---------|--------------|------------|
+| Immediate bus-off | Bit Error | Short circuit, bad transceiver |
+| Intermittent errors | CRC/Stuff | EMI, loose connection |
+| Errors after warm-up | Various | Thermal drift, component failure |
+| Single node affected | ACK | Transceiver, software config |
+| All nodes affected | Bit/Stuff | Bus wiring, termination |
