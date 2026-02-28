@@ -22,6 +22,79 @@ Passive Error Flag: 6 recessive bits
 Error Delimiter: 8 recessive bits
 ```
 
+## Error Flag Overlap
+
+When multiple nodes detect errors simultaneously, their error flags overlap
+on the bus due to the wired-AND nature of CAN:
+
+```
+Node A (TX):  ──────┌──┬──┬──┬──┬──┬──┬─────────────────┐
+                    │E1│E2│E3│E4│E5│E6│                 │
+                    │  │  │  │  │  │  │                 │
+Node B (RX):  ──────┼──┼──┼──┼──┼──┼──┼──┬──┬──┬──┬──┬──┬──┤
+                    │  │  │  │  │  │  │E1│E2│E3│E4│E5│E6│  │
+                    │  │  │  │  │  │  │  │  │  │  │  │  │  │
+Bus:          ──────┴──┴──┴──┴──┴──┴──┴──┴──┴──┴──┴──┴──┴──┴────
+                    ├─────────────┤├─────────────┤
+                    Node A flag    Node B flag
+                    ├────────────────────────────┤
+                         Overlap: 6-12 bits
+```
+
+### Overlap Characteristics
+
+- **Active + Active**: 6-12 dominant bits on bus
+- **Active + Passive**: 6 dominant bits (passive overwritten)
+- **Passive + Passive**: 12 recessive bits
+
+### Why Overlap Occurs
+
+1. Node A detects error first, sends error flag
+2. Error flag violates bit stuffing (6 dominant bits)
+3. Node B detects stuffing error
+4. Node B sends its error flag
+5. Flags overlap on bus
+
+## TX vs RX Node Error Detection
+
+**Key Insight**: Transmitter and receiver may detect DIFFERENT error types
+at the SAME moment!
+
+### Example Scenario
+
+```
+Timeline:
+T1: TX Node sends dominant bit
+    TX monitors bus, sees recessive → BIT ERROR detected!
+    TX starts sending active error flag (6 dominant bits)
+
+T2: RX Node sees 6 dominant bits
+    RX detects STUFF ERROR (6 same bits violated stuffing rule)
+    RX sends its own active error flag
+
+Result:
+- TX Node: Bit Error
+- RX Node: Stuff Error
+- Both occur at the same time!
+```
+
+### Why Different Errors?
+
+| Role | Can Detect | Cannot Detect |
+|------|------------|---------------|
+| TX Node | Bit Error (knows what it sent) | - |
+| RX Node | Stuff Error, CRC Error, Form Error | Bit Error (doesn't know TX intent) |
+
+### Error Detection Timing
+
+| Error Type | When Detected | Error Frame Sent |
+|------------|---------------|------------------|
+| Bit Error | Current bit | Next bit |
+| Stuff Error | 6th same bit | Next bit |
+| CRC Error | After CRC field | After ACK delimiter |
+| Form Error | Invalid fixed bit | Next bit |
+| ACK Error | ACK slot | Next bit |
+
 ## Error Types
 
 ### 1. Bit Error
@@ -29,14 +102,18 @@ Error Delimiter: 8 recessive bits
 **Detection:** Transmitted bit ≠ Received bit
 
 **Location:** Any bit except:
-- Arbitration field (ID + RTR)
-- ACK slot
+- Arbitration field (ID + RTR) - arbitration loss not error
+- ACK slot - no ACK is normal
 - Passive error flag
+
+**TX Node Exclusive**: Only transmitter can detect bit errors
+because only TX knows what it intended to send.
 
 **Causes:**
 - Transceiver failure
 - Bus contention
 - Short circuit
+- Signal integrity issues
 
 **LEC Code:** 4 or 5
 
@@ -46,10 +123,13 @@ Error Delimiter: 8 recessive bits
 
 **Location:** Between SOF and CRC delimiter
 
+**Both TX and RX** can detect stuff errors.
+
 **Causes:**
 - Baud rate mismatch
 - Signal integrity issues
 - Synchronization failure
+- Bit errors from other node
 
 **LEC Code:** 1
 
@@ -59,10 +139,13 @@ Error Delimiter: 8 recessive bits
 
 **Location:** CRC field
 
+**RX Node Only**: Only receivers calculate and verify CRC.
+
 **Causes:**
 - Signal integrity
 - Timing errors
 - Noise corruption
+- Bit errors earlier in frame
 
 **LEC Code:** 6
 
@@ -75,6 +158,12 @@ Error Delimiter: 8 recessive bits
 - ACK delimiter (should be recessive)
 - EOF field (should be 7 recessive)
 - Interframe space
+
+**Both TX and RX** can detect form errors.
+
+**Exceptions** (not form errors):
+- EOF last bit dominant (acceptable)
+- DLC 9-15 in data frame (acceptable)
 
 **Causes:**
 - Transmitter timing error
@@ -89,10 +178,13 @@ Error Delimiter: 8 recessive bits
 
 **Location:** ACK field (after CRC)
 
+**TX Node Only**: Only transmitter checks for ACK.
+
 **Causes:**
 - No other node on bus
 - All other nodes in error passive/bus-off
 - RX circuitry failure on other nodes
+- All other nodes filtering out this ID
 
 **LEC Code:** 3
 
@@ -108,6 +200,39 @@ Error Delimiter: 8 recessive bits
 | 5 | Bit Dominant Error | TX dominant ≠ RX |
 | 6 | CRC Error | CRC mismatch |
 | 7 | No Change | Controlled by software |
+
+## Active vs Passive Error Flags
+
+### Active Error Flag (Error Active State)
+
+```
+┌──────────────────────────────────────┐
+│ D D D D D D │ R R R R R R R R │
+│ 6 dominant  │  8 recessive    │
+│ Error Flag  │  Delimiter      │
+└──────────────────────────────────────┘
+
+Effect: Corrupts current transmission, all nodes see error
+```
+
+### Passive Error Flag (Error Passive State)
+
+```
+┌──────────────────────────────────────┐
+│ R R R R R R │ R R R R R R R R │
+│ 6 recessive │  8 recessive    │
+│ Error Flag  │  Delimiter      │
+└──────────────────────────────────────┘
+
+Effect: May not corrupt bus (dominant bits from other nodes win)
+```
+
+### Error Flag Behavior
+
+| State | Flag Type | Bus Impact | After Error |
+|-------|-----------|------------|-------------|
+| Error Active | 6 dominant | Corrupts transmission | Immediate retry |
+| Error Passive | 6 recessive | May not affect bus | Suspend 8 bits |
 
 ## Reading Error Status
 
@@ -161,7 +286,7 @@ CAN_Error_t CAN_GetErrorStatus(void)
 
 ### High TEC, Low REC
 
-**Indicates:** TX problems
+**Indicates:** TX problems at this node
 
 **Check:**
 - TX mailbox status
@@ -187,99 +312,15 @@ CAN_Error_t CAN_GetErrorStatus(void)
 - Ground problems
 - EMI interference
 
-## Detailed Troubleshooting Guide
+## Common Fault Signatures
 
-### Error Frame Analysis
-
-| Error Type | Primary Check | Secondary Check | Tools |
-|------------|---------------|-----------------|-------|
-| ACK | Other nodes active | Transceiver RX | Multimeter |
-| CRC | Signal quality | Baud rate | Oscilloscope |
-| Bit | Transceiver | Bus wiring | Oscilloscope |
-| Stuff | Baud rate | Timing/SJW | Logic analyzer |
-| Form | Transmitter | Noise | Scope + trigger |
-
-### ACK Error Solutions
-
-1. **Verify other nodes active**
-   - Check power to all nodes
-   - Verify transceiver enable pins
-   - Confirm software initialization
-
-2. **Check filter configuration**
-   - Other nodes may be rejecting messages
-   - Verify ID acceptance filters
-
-3. **Transceiver diagnostics**
-   - Measure CAN_H/L idle voltages
-   - Check TXD/RXD connections
-   - Verify transceiver not in standby
-
-### CRC Error Solutions
-
-1. **Signal integrity check**
-   - Use oscilloscope on CAN_H/L
-   - Check for ringing, overshoot
-   - Verify edge symmetry
-
-2. **Common causes:**
-   - Missing termination
-   - Long stubs
-   - EMI interference
-   - Poor cable quality
-
-3. **Solutions:**
-   - Add proper termination (120Ω each end)
-   - Shorten or remove stubs
-   - Use shielded cable
-   - Add common mode choke
-
-### Bit Error Solutions
-
-1. **Transceiver check**
-   - Verify VCC (typically 5V)
-   - Check thermal status
-   - Replace if suspected
-
-2. **Bus wiring check**
-   - Check for shorts (CAN_H to CAN_L)
-   - Check for opens
-   - Verify polarity (H to H, L to L)
-
-3. **Ground reference**
-   - Ensure all nodes share ground
-   - Check for ground loops
-   - Measure voltage between node grounds
-
-### Stuff Error Solutions
-
-1. **Baud rate verification**
-   - Check all nodes same baud rate
-   - Verify clock frequency
-   - Calculate actual vs nominal rate
-   - **Tolerance: < 1.5%**
-
-2. **SJW configuration**
-   - Increase SJW if possible
-   - Typical: 1-2 Tq
-   - Allows better resynchronization
-
-3. **Clock source quality**
-   - Use crystal oscillator for CAN
-   - Avoid internal RC oscillators
-   - Check oscillator stability
-
-### Form Error Solutions
-
-1. **Timing verification**
-   - Check sample point position
-   - Verify propagation delay settings
-   - Consider cable length effects
-
-2. **Noise investigation**
-   - Use shielded cables
-   - Check for EMI sources
-   - Improve grounding
+| Symptom | Likely Error | Root Cause |
+|---------|--------------|------------|
+| Immediate bus-off | Bit Error | Short circuit, bad transceiver |
+| Intermittent errors | CRC/Stuff | EMI, loose connection |
+| Errors after warm-up | Various | Thermal drift, component failure |
+| Single node affected | ACK | Transceiver, software config |
+| All nodes affected | Bit/Stuff | Bus wiring, termination |
 
 ## Diagnostic Checklist
 
@@ -293,62 +334,12 @@ CAN_Error_t CAN_GetErrorStatus(void)
 □ During TX: CAN_H = ~3.5V, CAN_L = ~1.5V
 ```
 
-### Error Counter Monitoring
+### Error Analysis
 
 ```
-□ Read TEC and REC every 100ms
-□ Log LEC values
-□ Track state transitions
-□ Monitor bus-off recovery
+□ Log LEC values with timestamps
+□ Correlate errors with system events
+□ Check if errors are TX or RX related
+□ Monitor TEC/REC trends
+□ Identify patterns (periodic, random, triggered)
 ```
-
-### Baud Rate Verification
-
-```
-□ Calculate actual baud rate
-□ Check all nodes match
-□ Verify clock accuracy
-□ Confirm tolerance < 1.5%
-```
-
-## Error Recovery Strategies
-
-### For ACK Errors
-1. Verify other nodes are active
-2. Check if other nodes can RX
-3. Verify filter configuration
-4. Check transceiver enable pins
-
-### For CRC Errors
-1. Check signal integrity with scope
-2. Verify baud rate match
-3. Check for noise sources
-4. Verify termination
-
-### For Bit Errors
-1. Check transceiver
-2. Verify bus not shorted
-3. Check for multiple transmitters
-4. Verify ground connections
-
-### For Stuff Errors
-1. Verify baud rate match (all nodes)
-2. Check sample point configuration
-3. Analyze signal edges
-4. Check clock source quality
-
-### For Form Errors
-1. Check transmitter timing
-2. Verify bus length vs baud rate
-3. Check for EMI/EMC issues
-4. Investigate signal reflections
-
-## Common Fault Signatures
-
-| Symptom | Likely Error | Root Cause |
-|---------|--------------|------------|
-| Immediate bus-off | Bit Error | Short circuit, bad transceiver |
-| Intermittent errors | CRC/Stuff | EMI, loose connection |
-| Errors after warm-up | Various | Thermal drift, component failure |
-| Single node affected | ACK | Transceiver, software config |
-| All nodes affected | Bit/Stuff | Bus wiring, termination |

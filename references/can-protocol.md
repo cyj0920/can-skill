@@ -5,6 +5,55 @@
 CAN (Controller Area Network) is a serial communication protocol designed for
 robust communication in automotive and industrial environments.
 
+## History
+
+CAN was developed by Bosch in the late 1980s for automotive applications.
+Standardized as ISO 11898 (high-speed) and ISO 11519 (low-speed).
+
+## CAN Bus Structures
+
+### Closed-Loop (ISO 11898) - High Speed
+
+```
+     120Ω                              120Ω
+  ┌──/\/\/\──┐                    ┌──/\/\/\──┐
+  │          │                    │          │
+Node A     CAN_H ═══════════════ CAN_H     Node B
+           CAN_L ═══════════════ CAN_L
+  │          │                    │          │
+  └──────────┘                    └──────────┘
+```
+
+- **Speed**: 125 kbps to 1 Mbps
+- **Max length**: 40m @ 1 Mbps
+- **Termination**: 120Ω at each end (total ~60Ω)
+- **Use case**: Automotive, industrial high-speed
+
+### Open-Loop (ISO 11519-2) - Low Speed
+
+```
+        2.2kΩ                              2.2kΩ
+     ┌──/\/\/\──┐                     ┌──/\/\/\──┐
+     │          │                     │          │
+Node A        CAN_H ═══════════════ CAN_H      Node B
+              CAN_L ═══════════════ CAN_L
+```
+
+- **Speed**: Up to 125 kbps
+- **Max length**: 1000m @ 40 kbps
+- **Termination**: 2.2kΩ series resistor at each node
+- **Use case**: Body electronics, low-speed networks
+
+### Physical Layer Comparison
+
+| Parameter | ISO 11898 (High Speed) | ISO 11519-2 (Low Speed) |
+|-----------|------------------------|-------------------------|
+| Speed | 125k-1M bps | ≤125k bps |
+| Max length | 40m @ 1Mbps | 1000m @ 40kbps |
+| Termination | 120Ω parallel | 2.2kΩ series |
+| Recessive V_diff | ~0V | <0V |
+| Dominant V_diff | ~2V | >2V |
+
 ## Key Features
 
 - Multi-master architecture
@@ -12,6 +61,8 @@ robust communication in automotive and industrial environments.
 - Built-in error detection
 - Automatic arbitration
 - High noise immunity
+- No clock signal (asynchronous)
+- Wired-AND logic (domant overrides recessive)
 
 ## Frame Types
 
@@ -21,24 +72,47 @@ robust communication in automotive and industrial environments.
 | Remote Frame | Request data |
 | Error Frame | Signal error |
 | Overload Frame | Delay next frame |
+| Inter-frame Space | Separate frames |
 
 ## Data Frame Structure
 
-```
-+------+--------+------+----------+------+-----+-----+------+
-| SOF  | Arbit. | Ctrl | Data     | CRC  | ACK | EOF | IFS  |
-| 1bit | 12-32b | 6bit | 0-8bytes | 15b  | 2b  | 7b  | 3b   |
-+------+--------+------+----------+------+-----+-----+------+
+### Standard Format (11-bit ID)
 
-SOF: Start of Frame (dominant)
-Arbitration: Identifier + RTR/SRR bits
-Control: IDE + DLC
-Data: 0-8 bytes payload
-CRC: Cyclic Redundancy Check
-ACK: Acknowledge slot
-EOF: End of Frame
-IFS: Interframe Space
 ```
+┌─────┬────────────┬─────────┬──────────┬─────┬─────┬─────┬─────┐
+│ SOF │ Identifier │ Control │   Data   │ CRC │ ACK │ EOF │ IFS │
+│ 1b  │   11 bits  │  6 bits │ 0-8 bytes│ 15b │  2b │  7b │  3b │
+└─────┴────────────┴─────────┴──────────┴─────┴─────┴─────┴─────┘
+
+Total (no stuffing): ~111 bits for 8-byte data
+With bit stuffing: ~130 bits average
+```
+
+### Extended Format (29-bit ID)
+
+```
+┌─────┬──────────────┬──────────────┬─────────┬──────────┬─────┬─────┬─────┬─────┐
+│ SOF │ Base ID (11b)│ SRR IDE ExtID│ Control │   Data   │ CRC │ ACK │ EOF │ IFS │
+└─────┴──────────────┴──────────────┴─────────┴──────────┴─────┴─────┴─────┴─────┘
+
+Total (no stuffing): ~135 bits for 8-byte data
+With bit stuffing: ~160 bits average
+```
+
+### Frame Fields Explained
+
+| Field | Bits | Description |
+|-------|------|-------------|
+| SOF | 1 | Start of Frame (dominant) |
+| Identifier | 11/29 | Message ID, determines priority |
+| RTR | 1 | Remote Transmission Request |
+| IDE | 1 | Identifier Extension |
+| DLC | 4 | Data Length Code (0-8 bytes) |
+| Data | 0-64 | Payload |
+| CRC | 15 | Cyclic Redundancy Check |
+| ACK | 2 | Acknowledge slot + delimiter |
+| EOF | 7 | End of Frame (7 recessive) |
+| IFS | 3 | Inter-frame Space |
 
 ## Bit Encoding
 
@@ -46,12 +120,36 @@ IFS: Interframe Space
 - **Recessive**: Logical 1, bus at ~2.5V differential (idle state)
 - Dominant overrides recessive (wired-AND)
 
+### Voltage Levels (ISO 11898)
+
+| State | CAN_H | CAN_L | Differential |
+|-------|-------|-------|--------------|
+| Recessive (idle) | 2.5V | 2.5V | 0V |
+| Dominant (active) | 3.5V | 1.5V | 2V |
+
 ## Arbitration
 
 - Non-destructive bitwise arbitration
 - Lower ID = Higher priority
 - ID 0x000 has highest priority
 - Winner continues transmission, losers retry
+
+### Arbitration Process
+
+```
+Time →  SOF  ID10 ID9 ID8 ID7 ID6 ID5 ID4 ID3 ...
+Node A:  0    0    0   1   0   1   0   0   1  ... (wins)
+Node B:  0    0    0   1   0   1   0   1   x  ... (loses at ID3)
+                          ↑
+                    Node B sends recessive, sees dominant
+                    Node B switches to receive mode
+```
+
+### Priority Rules
+
+1. Lower ID wins arbitration
+2. Data frame has higher priority than remote frame (same ID)
+3. Standard format has higher priority than extended format (same base ID)
 
 ## Error Detection
 
@@ -82,6 +180,53 @@ Data bits:    0 0 0 0 0 | 1 | 1 1 1 1 1 | 0
 - Adds ~20% overhead on average
 - Enables DC-free transmission
 - Essential for clock synchronization
+
+## Bit Timing
+
+### Bit Time Structure
+
+A CAN bit is divided into 4 segments:
+
+```
+ ┌── SYNC ──┬──── PROP ────┬──── PS1 ────┬──── PS2 ────┐
+ │    1 Tq  │    Prop_Tq   │   PS1_Tq    │   PS2_Tq    │
+ └──────────┴──────────────┴─────────────┴────────────┘
+                                             ↑
+                                        Sample Point
+```
+
+| Segment | Tq Range | Purpose |
+|---------|----------|---------|
+| SYNC_SEG | 1 (fixed) | Synchronization |
+| PROP_SEG | 1-8 | Propagation delay compensation |
+| PHASE_SEG1 | 1-8 | Phase buffer, can be extended |
+| PHASE_SEG2 | 1-8 | Phase buffer, can be shortened |
+
+### Time Quantum (Tq)
+
+```
+Tq = Prescaler / CAN_Clock
+Bit_Time = Tq × (1 + PROP + PS1 + PS2)
+Baud_Rate = 1 / Bit_Time
+```
+
+### Sample Point
+
+```
+Sample_Point = (1 + PROP + PS1) / Total_Tq
+Recommended: 87.5%
+```
+
+### Synchronization
+
+**Hardware Synchronization**:
+- Occurs at SOF detection (bus idle → dominant edge)
+- SYNC_SEG aligns with the edge
+
+**Resynchronization**:
+- Occurs during frame reception
+- PS1 can be extended or PS2 shortened (up to SJW)
+- Compensates for clock drift
 
 ## Baud Rate
 
@@ -151,22 +296,20 @@ Total bits/second: 500 × 130 = 65,000 bits
 Bus load: 65,000 / 500,000 = 13%
 ```
 
-**Recommended max bus load: 70%** to allow for:
+**Recommended max bus load: 30-50%** to allow for:
 - Error recovery
 - Message retransmission
-- Network expansion
+- Low priority message transmission
 
-## Physical Layer Voltage Levels
+### 11 Recessive Bits = Bus Idle
 
-| State | CAN_H | CAN_L | Differential |
-|-------|-------|-------|--------------|
-| Recessive (idle) | 2.5V | 2.5V | 0V |
-| Dominant (active) | 3.5V | 1.5V | 2V |
+CAN bus is considered idle after detecting 11 consecutive recessive bits:
 
-**Voltage Tolerance**:
-- V_diff (dominant): ≥ 1.5V
-- V_diff (recessive): < 0.5V
-- Common mode range: -2V to +7V
+```
+Ack Delimiter (1) + EOF (7) + IFS (3) = 11 bits
+```
+
+This is why bus-off recovery requires 128 × 11 recessive bits.
 
 ## Differential Signaling Benefits
 
