@@ -43,16 +43,25 @@ A comprehensive AI Agent Skill for embedded MCU CAN/CAN-FD bus development, cove
 | `references/emi-emc-guide.md` | EMI/EMC design guide |
 | `references/common-fault-cases.md` | 10 real-world fault cases |
 | `references/can-buffer-mode.md` | Basic CAN vs Full CAN, FIFO configuration |
+| `references/autosar-can-module.md` | AUTOSAR CAN stack architecture |
+| `references/can-priority-inversion.md` | Priority inversion analysis and solutions |
+| `references/can-controller-states.md` | Controller state machine management |
+| `references/can-engineering-practices.md` | Engineering best practices |
 | `sub-skills/can-diagnosis/references/busoff-recovery.md` | Busoff recovery mechanisms |
 
 ### Quick Diagnosis
 
-**Over 80% of CAN issues are physical layer problems:**
-
+**Physical Layer (Basic Check):**
 1. Check termination: CAN_H to CAN_L should be ~60Ω
 2. Check idle voltage: CAN_H and CAN_L should be ~2.5V each
 3. Check baud rate: All nodes must match (< 0.5% tolerance)
-4. Check wiring: CAN_H to CAN_H, CAN_L to CAN_L
+
+**Software Layer (AUTOSAR/Common Issues):**
+1. **Priority Inversion**: Check FULL vs BASIC CAN configuration
+2. **BusOff Recovery**: Verify CanBusOffRecovery settings and state transitions
+3. **FIFO Overflow**: Check FIFO depth vs message reception rate
+4. **State Machine**: Verify controller state transitions (STOPPED → STARTED)
+5. **Message Delay**: Check HTH/HRH configuration and interrupt/polling mode
 
 ### Directory Structure
 
@@ -70,7 +79,7 @@ can-skill/
 
 ### Version
 
-Current version: **v1.2.0**
+Current version: **v1.3.0**
 
 ---
 
@@ -113,16 +122,25 @@ Current version: **v1.2.0**
 | `references/emi-emc-guide.md` | EMI/EMC设计指南 |
 | `references/common-fault-cases.md` | 10个真实故障案例 |
 | `references/can-buffer-mode.md` | Basic CAN vs Full CAN、FIFO配置 |
+| `references/autosar-can-module.md` | AUTOSAR CAN栈架构详解 |
+| `references/can-priority-inversion.md` | 优先级反转分析与解决方案 |
+| `references/can-controller-states.md` | 控制器状态机管理 |
+| `references/can-engineering-practices.md` | 工程实践最佳实践 |
 | `sub-skills/can-diagnosis/references/busoff-recovery.md` | Busoff恢复机制 |
 
 ### 快速诊断
 
-**超过80%的CAN问题是物理层问题：**
-
+**物理层（基础检查）：**
 1. 检查终端电阻：CAN_H到CAN_L应为~60Ω
 2. 检查空闲电压：CAN_H和CAN_L应各为~2.5V
 3. 检查波特率：所有节点必须匹配（容差< 0.5%）
-4. 检查接线：CAN_H接CAN_H，CAN_L接CAN_L
+
+**软件层（AUTOSAR/常见问题）：**
+1. **优先级反转**: 检查FULL vs BASIC CAN配置
+2. **BusOff恢复**: 验证CanBusOffRecovery设置和状态转换
+3. **FIFO溢出**: 检查FIFO深度与报文接收频率匹配
+4. **状态机异常**: 验证控制器状态转换（STOPPED → STARTED）
+5. **报文延迟**: 检查HTH/HRH配置和中断/轮询模式
 
 ### 目录结构
 
@@ -140,7 +158,7 @@ can-skill/
 
 ### 版本
 
-当前版本：**v1.2.0**
+当前版本：**v1.3.0**
 
 ---
 
